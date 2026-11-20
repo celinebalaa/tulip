@@ -117,15 +117,39 @@ def build_model(modelconfig: dict, tokenizer, mhctok) -> Tulip:
                  decoderA=decoders[0], decoderB=decoders[1], decoderE=decoders[2])
 
 
+def normalize_config(config: dict) -> dict:
+    """
+    ``{num_attn_heads, num_hidden_layers, hidden_size}`` from either config format.
+
+    Upstream's ``configs/*.config.json`` already have that form. A HuggingFace ``config.json`` saved with the model
+    (``{"encoder": {...}, "decoder": {...}}``) is reduced to it; encoder and decoder must agree, as predict.py builds
+    both from one set of numbers.
+    """
+    if "encoder" not in config:
+        missing = [k for k in ("num_attn_heads", "num_hidden_layers", "hidden_size") if k not in config]
+        if missing:
+            raise ValueError(f"config lacks {missing}")
+        return {k: config[k] for k in ("num_attn_heads", "num_hidden_layers", "hidden_size")}
+    enc, dec = config["encoder"], config.get("decoder", config["encoder"])
+    out = {"num_attn_heads": enc["num_attention_heads"], "num_hidden_layers": enc["num_hidden_layers"],
+           "hidden_size": enc["hidden_size"]}
+    other = {"num_attn_heads": dec["num_attention_heads"], "num_hidden_layers": dec["num_hidden_layers"],
+             "hidden_size": dec["hidden_size"]}
+    if out != other:
+        raise ValueError(f"encoder {out} and decoder {other} differ: not a TULIP shallow-style model")
+    return out
+
+
 def load(weights: str, config: Union[str, dict], device: Union[str, torch.device] = "auto") -> TulipHandle:
     """
-    Build the model for ``config`` (a path to the json, or the dict), load ``weights`` and move it to ``device``.
+    Build the model for ``config`` (a path to the json, or the dict; upstream's small format or a HuggingFace ``config.json``), load ``weights`` and move it to ``device``.
 
     ``map_location`` is the device itself, so a checkpoint saved on CUDA loads on CPU or MPS.
     """
     if not isinstance(config, dict):
         with open(config) as fh:
             config = json.load(fh)
+    config = normalize_config(config)
     dev = resolve_device(device)
     tokenizer, mhctok = load_tokenizers()
     model = build_model(config, tokenizer, mhctok)

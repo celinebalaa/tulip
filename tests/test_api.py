@@ -143,3 +143,21 @@ def test_higher_score_means_binder():
     scores = api.score(h, d["CDR3b"].tolist(), ["GILGFVFTL"])[:, 0]       # beta-only, <MIS> placeholders (as tcrkit)
     assert roc_auc_score(d["binder"], scores) > 0.8                       # observed 0.908 on 400 rows
     assert roc_auc_score(d["binder"], -scores) < 0.2
+
+
+def test_huggingface_style_config(handle):
+    """The config.json saved next to the weights ({"encoder": ..., "decoder": ...}) loads and scores identically."""
+    import json
+    hf = os.path.join(ROOT, "model_weights", "config.json")
+    assert "encoder" in json.load(open(hf))
+    assert api.normalize_config(json.load(open(hf))) == json.load(open(CONFIG))
+    h2 = api.load(WEIGHTS, hf, device="cpu")
+    np.testing.assert_array_equal(api.score(handle, CDR3[:3], PEPTIDES[:1]), api.score(h2, CDR3[:3], PEPTIDES[:1]))
+
+
+def test_normalize_config_rejects_mismatch_and_missing():
+    with pytest.raises(ValueError, match="differ"):
+        api.normalize_config({"encoder": {"num_attention_heads": 1, "num_hidden_layers": 2, "hidden_size": 128},
+                              "decoder": {"num_attention_heads": 2, "num_hidden_layers": 2, "hidden_size": 128}})
+    with pytest.raises(ValueError, match="lacks"):
+        api.normalize_config({"hidden_size": 128})
