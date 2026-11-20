@@ -69,3 +69,36 @@ Understanding how to best sample using TULIP, is still a work in progress. Sampl
 
 
 
+
+
+## Changes from upstream (this fork)
+
+This fork of [barthelemymp/TULIP-TCR](https://github.com/barthelemymp/TULIP-TCR) stays GPL-3.0 (see `LICENSE`); upstream copyright
+notices are kept. It branches from upstream `main` at commit `798fab97a3b13d08dcbfc381ea643e8dc14297c2` ("Update README.md"),
+the commit the fork pointed at when it was created. If you use TULIP, cite the TULIP paper (see above) and link upstream.
+
+Added, so that TULIP can be installed and called from other code (`pip install git+https://github.com/celinebalaa/tulip`):
+
+- `pyproject.toml`: installs `src/` as the package `tulip_tcr`, with `aatok/`, `mhctok/`, `nomhctok/`, `configs/` as package data.
+  The upstream layout is untouched so upstream changes still merge.
+- `src/__init__.py`, `src/api.py`: `tulip_tcr.load(weights, config, device="auto")` and
+  `tulip_tcr.score(handle, cdr3b, peptides, cdr3a=None, mhc=None)`. `score` returns `-1 * get_logscore`, shape
+  `(len(cdr3b), len(peptides))`; higher is more model-compatible, comparable only for a fixed peptide.
+  `api.score_reference` is upstream's own path (`TCRDataset` + `get_logscore`) and is the oracle the tests compare against.
+- `tests/`: run with `pip install -e ".[test]" && pytest`; they use the public checkpoint in `model_weights/`.
+
+Modified upstream files (each carries a header line saying so):
+
+- `predict.py`: device selection gains an Apple MPS branch; the checkpoint is loaded with `map_location=device`.
+- `src/multiTrans.py`: `TCRDataset.__init__` selects `target_peptide` rows by equality (upstream used a substring test, so a shorter
+  peptide such as `VEALYLVCG` also admitted the rows of `VEALYLVCGERG`). A collection of peptides still means membership.
+
+Model weights fine-tuned privately are **not** part of this repository.
+
+### Tested versions
+
+Upstream pins `transformers==4.32.1`. Tested here: `transformers` 4.32.1 (Python 3.11) and 4.57.6 (Python 3.13), torch 2.15, CPU.
+`transformers` 5.x does **not** work (`BertConfig` no longer has `cross_attention_hidden_size`, which `Tulip.__init__` reads), hence `<5`.
+Scores from unmodified upstream `predict.py` on 4.32.1 are stored in `tests/data/` and `tests/test_api.py` checks the fork against them on
+whichever version is installed: they agree to float32 rounding (max absolute difference 1.2e-5 on scores down to about -16, identical rankings).
+GPU (CUDA / MPS) is untested here.

@@ -1,0 +1,37 @@
+# Added by celinebalaa (2026-11), not part of upstream TULIP-TCR; GPL-3.0 like the rest of this repository.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tulip-tcr"
+version = "0.1.0"
+description = "Fork of TULIP-TCR (Meynard-Piganeau et al.) with an installable package and an in-memory scoring API"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "torch",
+    "transformers>=4.32,<5",      # 5.x removed PretrainedConfig attributes that src/multiTrans.py reads
+    "tokenizers",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+# The upstream layout is kept (src/, aatok/, ...) so that upstream changes still merge; it is mapped to one package.
+packages = ["tulip_tcr", "tulip_tcr.aatok", "tulip_tcr.mhctok", "tulip_tcr.nomhctok", "tulip_tcr.configs"]
+package-dir = {"tulip_tcr" = "src", "tulip_tcr.aatok" = "aatok", "tulip_tcr.mhctok" = "mhctok", "tulip_tcr.nomhctok" = "nomhctok", "tulip_tcr.configs" = "configs"}
+
+[tool.setuptools.package-data]
+"tulip_tcr.aatok" = ["*.json"]
+"tulip_tcr.mhctok" = ["*.json"]
+"tulip_tcr.nomhctok" = ["*.json"]
+"tulip_tcr.configs" = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,3 +1,8 @@
+# Modified by celinebalaa, 2026-11 (GPL-3.0 section 5(a)): TCRDataset.__init__ selects target_peptide rows by equality
+# for a string (upstream used a substring test, so a shorter peptide admitted the rows of a longer one containing it).
+# Also: the two ModelOutput subclasses are @dataclass with annotated fields (transformers 4.57.6 refuses them otherwise; the
+# values they carry are unchanged).
+# Upstream: https://github.com/barthelemymp/TULIP-TCR
 """
 This code is mostly a modification of the original code from the hugginface library:
     https://github.com/huggingface/transformers/blob/main/src/transformers/models/bert/modeling_bert.py
@@ -5,6 +10,7 @@ This code is mostly a modification of the original code from the hugginface libr
 """
 
 import pandas as pd
+from dataclasses import dataclass
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -86,7 +92,10 @@ class TCRDataset(data.Dataset):
             df = df[df["binder"]==1]
 
         if target_peptide:
-            df = df[df["peptide"].apply(lambda x: x in target_peptide)]
+            if isinstance(target_peptide, str):
+                df = df[df["peptide"] == target_peptide]
+            else:                                   # a collection of peptides: membership, as before
+                df = df[df["peptide"].isin(list(target_peptide))]
 
         if excluded_peptide:
             print("exluded", excluded_peptide)
@@ -338,6 +347,7 @@ class TCRDataset(data.Dataset):
 
 ### MODELING
 
+@dataclass
 class ClassifCausalLMOutputWithCrossAttentions(ModelOutput):
     lm_loss: Optional[torch.FloatTensor] = None
     lossCLS: Optional[torch.FloatTensor] = None
@@ -513,15 +523,17 @@ class TulipPetal(BertPreTrainedModel):
 
 
 
+@dataclass
 class ED_LMOutput(ModelOutput):
+    loss: Optional[torch.FloatTensor] = None
     clf_loss: Optional[torch.FloatTensor] = None
     clf_logits: Optional[torch.FloatTensor] = None
-    decoder_outputsA = None
-    encoder_outputsA = None
-    decoder_outputsB = None
-    encoder_outputsB = None
-    decoder_outputsE = None
-    encoder_outputsE = None
+    decoder_outputsA: Optional[Any] = None
+    encoder_outputsA: Optional[Any] = None
+    decoder_outputsB: Optional[Any] = None
+    encoder_outputsB: Optional[Any] = None
+    decoder_outputsE: Optional[Any] = None
+    encoder_outputsE: Optional[Any] = None
 
 
 logger = logging.get_logger(__name__)

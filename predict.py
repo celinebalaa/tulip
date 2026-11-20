@@ -1,3 +1,5 @@
+# Modified by celinebalaa, 2026-11 (GPL-3.0 section 5(a)): device selection gains an MPS branch, and the checkpoint is
+# loaded with map_location=device. Upstream: https://github.com/barthelemymp/TULIP-TCR
 
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -72,7 +74,12 @@ def main():
 
 
     torch.manual_seed(0)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
     print("Using device:", device)
 
     test_path = args.test_dir
@@ -152,14 +159,9 @@ def main():
     
 
     model = Tulip(encoderA=encoderA,encoderB=encoderB,encoderE=encoderE, decoderA=decoderA, decoderB=decoderB, decoderE=decoderE)
-    if torch.cuda.is_available():
-        checkpoint = torch.load(args.load)
-        model.load_state_dict(checkpoint)
-        
-    else:
-        checkpoint = torch.load(args.load, map_location=torch.device('cpu'))
-        model.load_state_dict(checkpoint)
-        
+    checkpoint = torch.load(args.load, map_location=device)
+    model.load_state_dict(checkpoint)
+
     model.to(device)
     target_peptidesFinal = pd.read_csv(test_path)["peptide"].unique()
 
