@@ -21,4 +21,10 @@ def score(handle, cdr3b, peptides, cdr3a=None, mhc=None, batch_size=None):
     return _score(handle, cdr3b, peptides, cdr3a=cdr3a, mhc=mhc, batch_size=batch_size)
 
 
-__all__ = ["__version__", "load", "score"]
+def mhc_vocabulary(handle):
+    """The MHC strings the model knows (see :func:`tulip_tcr.api.mhc_vocabulary`)."""
+    from .api import mhc_vocabulary as _v
+    return _v(handle)
+
+
+__all__ = ["__version__", "load", "mhc_vocabulary", "score"]

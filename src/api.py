@@ -160,6 +160,29 @@ def load(weights: str, config: Union[str, dict], device: Union[str, torch.device
                        pad_token_id=tokenizer.pad_token_id)
 
 
+def mhc_vocabulary(handle: "TulipHandle") -> set:
+    """The MHC strings the model knows (``mhctok/``, a closed word list incl. the ``<MIS>`` placeholder)."""
+    return set(handle.mhctok.get_vocab())
+
+
+def check_mhc(handle: "TulipHandle", mhc) -> None:
+    """
+    Raise a ``ValueError`` naming the closest valid strings if ``mhc`` (None, a string, or one per row) holds a string
+    outside the vocabulary. Upstream silently maps such a string to the ``<MIS>`` placeholder, so a typo or an
+    unsupported allele would quietly give an MHC-unspecified score.
+    """
+    if mhc is None:
+        return
+    values = {mhc} if isinstance(mhc, str) else set(mhc)
+    vocab = mhc_vocabulary(handle)
+    bad = sorted(v for v in values if v not in vocab)
+    if bad:
+        import difflib
+        hints = {b: difflib.get_close_matches(b, sorted(vocab), n=3, cutoff=0.5) for b in bad}
+        raise ValueError(f"Unknown MHC {bad[:5]}: not one of the {len(vocab)} strings the model knows "
+                         f"(they would silently become '<MIS>'). Closest: {hints}")
+
+
 def _per_row(value: Union[None, str, Sequence[str]], n: int, name: str) -> list:
     if value is None:
         return [MIS] * n
@@ -174,6 +197,7 @@ def _per_row(value: Union[None, str, Sequence[str]], n: int, name: str) -> list:
 def make_dataset(handle: TulipHandle, cdr3b: Sequence[str], peptide: str, cdr3a=None, mhc=None) -> TCRDataset:
     """In-memory dataset of ``cdr3b`` x one peptide (upstream ``empty_init`` / ``append``; ``binder=1``)."""
     n = len(cdr3b)
+    check_mhc(handle, mhc)
     alphas, mhcs = _per_row(cdr3a, n, "cdr3a"), _per_row(mhc, n, "mhc")
     ds = TCRDataset.empty_init(handle.tokenizer, handle.device, handle.mhctok)
     for a, b, m in zip(alphas, cdr3b, mhcs):
@@ -202,7 +226,9 @@ def score(handle: TulipHandle, cdr3b: Sequence[str], peptides: Sequence[str], cd
     Log-likelihood of every peptide given every CDR3b: ``-1 * get_logscore``, shape ``(len(cdr3b), len(peptides))``.
 
     ``cdr3a`` / ``mhc``: ``None`` (the ``<MIS>`` placeholder, as in the historical runs), one string for all rows,
-    or one per CDR3b.
+    or one per CDR3b. An MHC outside :func:`mhc_vocabulary` raises (see :func:`check_mhc`). The MHC is the allele that
+    presents the peptide; it applies to every peptide of the call, so score peptides with different alleles in
+    separate calls.
 
     Currently this *is* :func:`score_reference`. ``batch_size`` has no effect yet because upstream
     ``get_logscore`` hard-codes 100; a value other than that warns instead of being silently ignored.
@@ -210,6 +236,7 @@ def score(handle: TulipHandle, cdr3b: Sequence[str], peptides: Sequence[str], cd
     if batch_size is not None and int(batch_size) != UPSTREAM_BATCH_SIZE:
         warnings.warn(f"batch_size={batch_size} is ignored: upstream get_logscore uses {UPSTREAM_BATCH_SIZE}",
                       stacklevel=2)
+    check_mhc(handle, mhc)
     if len(cdr3b) == 0:
         return np.empty((0, len(peptides)), dtype=np.float64)
     return score_reference(handle, cdr3b, peptides, cdr3a, mhc)

@@ -85,6 +85,9 @@ Added, so that TULIP can be installed and called from other code (`pip install g
   `tulip_tcr.score(handle, cdr3b, peptides, cdr3a=None, mhc=None)`. `score` returns `-1 * get_logscore`, shape
   `(len(cdr3b), len(peptides))`; higher is more model-compatible, comparable only for a fixed peptide.
   `api.score_reference` is upstream's own path (`TCRDataset` + `get_logscore`) and is the oracle the tests compare against.
+- MHC: `tulip_tcr.mhc_vocabulary(handle)` lists the 55 strings the model knows (a closed word list: `HLA-A*02:01`, `H-2Kb`, `HLA class I`, ...);
+  `score(..., mhc=...)` takes one string for all rows or one per CDR3b and **raises** on any other string, where upstream silently
+  maps it to the `<MIS>` placeholder. The MHC is the allele that presents the peptide.
 - `tests/`: run with `pip install -e ".[test]" && pytest`; they use the public checkpoint in `model_weights/`.
 
 Modified upstream files (each carries a header line saying so):
